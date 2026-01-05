@@ -1,0 +1,273 @@
+/**
+ * OBS Adapter Tests - TDD
+ * Tests written first, then implementation
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { OBSAdapter } from './obs-adapter.js';
+
+// Mock obs-websocket-js
+vi.mock('obs-websocket-js', () => {
+    const mockOBS = {
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        call: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+    };
+    return {
+        default: vi.fn(() => mockOBS),
+    };
+});
+
+describe('OBSAdapter', () => {
+    let adapter: OBSAdapter;
+    let mockOBS: any;
+
+    beforeEach(async () => {
+        // Get fresh mock
+        const OBSWebSocket = (await import('obs-websocket-js')).default;
+        mockOBS = new OBSWebSocket();
+        adapter = new OBSAdapter();
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    describe('connect', () => {
+        it('should connect to OBS WebSocket with URL and password', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455', 'testpassword');
+
+            expect(mockOBS.connect).toHaveBeenCalledWith(
+                'ws://localhost:4455',
+                'testpassword',
+                expect.any(Object)
+            );
+            expect(adapter.isConnected()).toBe(true);
+        });
+
+        it('should connect without password', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+
+            expect(mockOBS.connect).toHaveBeenCalledWith(
+                'ws://localhost:4455',
+                undefined,
+                expect.any(Object)
+            );
+        });
+
+        it('should throw error on connection failure', async () => {
+            mockOBS.connect.mockRejectedValueOnce(new Error('Connection refused'));
+
+            await expect(
+                adapter.connect('ws://localhost:4455')
+            ).rejects.toThrow('Connection refused');
+            expect(adapter.isConnected()).toBe(false);
+        });
+    });
+
+    describe('disconnect', () => {
+        it('should disconnect from OBS WebSocket', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.disconnect.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.disconnect();
+
+            expect(mockOBS.disconnect).toHaveBeenCalled();
+            expect(adapter.isConnected()).toBe(false);
+        });
+    });
+
+    describe('getSceneList', () => {
+        it('should return list of scenes', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({
+                currentProgramSceneName: 'Scene 1',
+                currentProgramSceneUuid: 'uuid-1',
+                scenes: [
+                    { sceneName: 'Scene 1', sceneUuid: 'uuid-1', sceneIndex: 0 },
+                    { sceneName: 'Scene 2', sceneUuid: 'uuid-2', sceneIndex: 1 },
+                ],
+            });
+
+            await adapter.connect('ws://localhost:4455');
+            const result = await adapter.getSceneList();
+
+            expect(mockOBS.call).toHaveBeenCalledWith('GetSceneList');
+            expect(result.currentProgramSceneName).toBe('Scene 1');
+            expect(result.scenes).toHaveLength(2);
+        });
+
+        it('should throw error when not connected', async () => {
+            await expect(adapter.getSceneList()).rejects.toThrow('Not connected');
+        });
+    });
+
+    describe('setCurrentScene', () => {
+        it('should set current program scene by name', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.setCurrentScene('Scene 2');
+
+            expect(mockOBS.call).toHaveBeenCalledWith('SetCurrentProgramScene', {
+                sceneName: 'Scene 2',
+            });
+        });
+
+        it('should throw error when not connected', async () => {
+            await expect(adapter.setCurrentScene('Scene 1')).rejects.toThrow(
+                'Not connected'
+            );
+        });
+    });
+
+    describe('getSourceScreenshot', () => {
+        it('should get screenshot of program output', async () => {
+            const base64Image = 'data:image/png;base64,iVBORw0KGgo...';
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({
+                imageData: base64Image,
+            });
+
+            await adapter.connect('ws://localhost:4455');
+            const result = await adapter.getSourceScreenshot();
+
+            expect(mockOBS.call).toHaveBeenCalledWith('GetSourceScreenshot', {
+                imageFormat: 'png',
+            });
+            expect(result).toBe(base64Image);
+        });
+
+        it('should get screenshot of specific source', async () => {
+            const base64Image = 'data:image/jpg;base64,/9j/4AAQSkZJRg...';
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({
+                imageData: base64Image,
+            });
+
+            await adapter.connect('ws://localhost:4455');
+            const result = await adapter.getSourceScreenshot('Game Capture', 'jpg');
+
+            expect(mockOBS.call).toHaveBeenCalledWith('GetSourceScreenshot', {
+                sourceName: 'Game Capture',
+                imageFormat: 'jpg',
+            });
+            expect(result).toBe(base64Image);
+        });
+    });
+
+    describe('setInputSettings', () => {
+        it('should update input settings', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.setInputSettings('TextSource', { text: 'Hello World' });
+
+            expect(mockOBS.call).toHaveBeenCalledWith('SetInputSettings', {
+                inputName: 'TextSource',
+                inputSettings: { text: 'Hello World' },
+                overlay: true,
+            });
+        });
+    });
+
+    describe('setInputVolume', () => {
+        it('should set input volume (multiplier)', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.setInputVolume('Mic/Aux', 0.8);
+
+            expect(mockOBS.call).toHaveBeenCalledWith('SetInputVolume', {
+                inputName: 'Mic/Aux',
+                inputVolumeMul: 0.8,
+            });
+        });
+    });
+
+    describe('setInputMute', () => {
+        it('should mute input', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.setInputMute('Mic/Aux', true);
+
+            expect(mockOBS.call).toHaveBeenCalledWith('SetInputMute', {
+                inputName: 'Mic/Aux',
+                inputMuted: true,
+            });
+        });
+    });
+
+    describe('getStats', () => {
+        it('should return OBS stats', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({
+                cpuUsage: 5.5,
+                memoryUsage: 1024,
+                activeFps: 60,
+                renderSkippedFrames: 0,
+                renderTotalFrames: 10000,
+                outputSkippedFrames: 2,
+                outputTotalFrames: 10000,
+            });
+
+            await adapter.connect('ws://localhost:4455');
+            const stats = await adapter.getStats();
+
+            expect(mockOBS.call).toHaveBeenCalledWith('GetStats');
+            expect(stats.cpuUsage).toBe(5.5);
+            expect(stats.activeFps).toBe(60);
+        });
+    });
+
+    describe('getVersion', () => {
+        it('should return OBS version info', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({
+                obsVersion: '31.0.0',
+                obsWebSocketVersion: '5.5.0',
+                rpcVersion: 1,
+                platform: 'macos',
+            });
+
+            await adapter.connect('ws://localhost:4455');
+            const version = await adapter.getVersion();
+
+            expect(mockOBS.call).toHaveBeenCalledWith('GetVersion');
+            expect(version.obsVersion).toBe('31.0.0');
+        });
+    });
+
+    describe('setSceneItemEnabled', () => {
+        it('should enable/disable scene item', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({ sceneItemId: 123 });
+            mockOBS.call.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.setSceneItemEnabled('Main Scene', 'Overlay', true);
+
+            expect(mockOBS.call).toHaveBeenCalledWith('GetSceneItemId', {
+                sceneName: 'Main Scene',
+                sourceName: 'Overlay',
+            });
+            expect(mockOBS.call).toHaveBeenCalledWith('SetSceneItemEnabled', {
+                sceneName: 'Main Scene',
+                sceneItemId: 123,
+                sceneItemEnabled: true,
+            });
+        });
+    });
+});
