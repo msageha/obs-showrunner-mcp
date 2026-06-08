@@ -12,6 +12,11 @@ vi.mock('../adapters/obs-adapter.js', () => {
     return {
         OBSAdapter: vi.fn().mockImplementation(() => ({
             getSourceScreenshot: vi.fn().mockResolvedValue('data:image/png;base64,iVBORw0KGgo...'),
+            getSceneList: vi.fn().mockResolvedValue({
+                currentProgramSceneName: 'Program Scene',
+                currentProgramSceneUuid: 'uuid-program',
+                scenes: [],
+            }),
             isConnected: vi.fn().mockReturnValue(true),
         })),
     };
@@ -29,11 +34,27 @@ describe('VisionTools', () => {
     });
 
     describe('takeStreamSnapshot', () => {
-        it('should take screenshot of program output', async () => {
+        it('should capture the current program scene when no source given', async () => {
             const result = await visionTools.takeStreamSnapshot({});
 
             expect(result.success).toBe(true);
             expect(result.data?.imageData).toContain('data:image/png');
+            expect(obsAdapter.getSourceScreenshot).toHaveBeenCalledWith(
+                'Program Scene',
+                'png'
+            );
+        });
+
+        it('should error when no source and no active program scene', async () => {
+            (obsAdapter.getSceneList as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+                currentProgramSceneName: null,
+                scenes: [],
+            });
+
+            const result = await visionTools.takeStreamSnapshot({});
+
+            expect(result.success).toBe(false);
+            expect(obsAdapter.getSourceScreenshot).not.toHaveBeenCalled();
         });
 
         it('should take screenshot of specific source', async () => {

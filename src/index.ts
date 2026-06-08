@@ -45,12 +45,28 @@ async function main() {
         },
     };
 
-    const { start } = createServer(config);
+    const { connect, start } = createServer(config);
+
+    // Connect to OBS first so tools work immediately. Tolerate failure so the
+    // MCP server still starts and the client can call reconnect_obs later
+    // (e.g. when OBS is launched after this server).
+    try {
+        await connect();
+    } catch (error) {
+        console.error(
+            '[obs-showrunner] Initial OBS connection failed:',
+            error instanceof Error ? error.message : error
+        );
+        console.error(
+            '[obs-showrunner] Starting without OBS; call reconnect_obs once OBS is reachable.'
+        );
+    }
 
     // Start the MCP server
     await start();
 }
 
-main().catch(() => {
+main().catch((error) => {
+    console.error('[obs-showrunner] Fatal error:', error);
     process.exit(1);
 });
