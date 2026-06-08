@@ -270,4 +270,52 @@ describe('OBSAdapter', () => {
             });
         });
     });
+
+    describe('stopStream', () => {
+        it('should stop the active stream', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.stopStream();
+
+            expect(mockOBS.call).toHaveBeenCalledWith('StopStream');
+        });
+
+        it('should throw error when not connected', async () => {
+            await expect(adapter.stopStream()).rejects.toThrow('Not connected');
+        });
+    });
+
+    describe('stopRecord', () => {
+        it('should stop the active recording', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            await adapter.stopRecord();
+
+            expect(mockOBS.call).toHaveBeenCalledWith('StopRecord');
+        });
+
+        it('should throw error when not connected', async () => {
+            await expect(adapter.stopRecord()).rejects.toThrow('Not connected');
+        });
+    });
+
+    describe('connection state', () => {
+        it('should mark disconnected when OBS connection closes', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            await adapter.connect('ws://localhost:4455');
+            expect(adapter.isConnected()).toBe(true);
+
+            const closedHandler = mockOBS.on.mock.calls.find(
+                (call: unknown[]) => call[0] === 'ConnectionClosed'
+            )?.[1] as (() => void) | undefined;
+            expect(closedHandler).toBeDefined();
+            closedHandler?.();
+
+            expect(adapter.isConnected()).toBe(false);
+        });
+    });
 });
