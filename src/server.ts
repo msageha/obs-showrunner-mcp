@@ -537,8 +537,26 @@ export function createServer(config: ServerConfig) {
                 case 'take_stream_snapshot': {
                     const params = z.object({ sourceName: z.string().optional() }).parse(args);
                     const result = await visionTools.takeStreamSnapshot(params);
+                    const imageData = result.success
+                        ? (result.data?.imageData as string | undefined)
+                        : undefined;
+                    if (imageData) {
+                        // obs-websocket returns a data URI ("data:image/png;base64,...").
+                        // MCP image content needs the bare base64 string plus a mimeType.
+                        const match = /^data:(image\/[\w.+-]+);base64,(.*)$/s.exec(imageData);
+                        return {
+                            content: [
+                                {
+                                    type: 'image',
+                                    data: match ? match[2] : imageData,
+                                    mimeType: match ? match[1] : 'image/png',
+                                },
+                            ],
+                        };
+                    }
                     return {
                         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+                        isError: !result.success,
                     };
                 }
 
