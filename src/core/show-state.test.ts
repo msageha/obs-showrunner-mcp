@@ -180,6 +180,22 @@ describe('ShowStateManager', () => {
             );
         });
 
+        it('should set the timer when the segment has none', () => {
+            manager.registerTemplate(testTemplate);
+            // 'main' segment has no timerSec defined
+            manager.startShow('test-show', { startSegmentId: 'main' });
+
+            expect(
+                manager.getCurrentState().currentSegment?.timerRemainingSec
+            ).toBeUndefined();
+
+            manager.extendSegment(2);
+
+            expect(
+                manager.getCurrentState().currentSegment?.timerRemainingSec
+            ).toBe(2 * 60);
+        });
+
         it('should throw error when no show is running', () => {
             expect(() => manager.extendSegment(5)).toThrow('No show running');
         });

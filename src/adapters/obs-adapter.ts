@@ -40,6 +40,16 @@ export class OBSAdapter {
 
     constructor() {
         this.obs = new OBSWebSocket();
+
+        // Keep the connected flag in sync when OBS drops the socket, so
+        // isConnected() stays accurate, tools fail fast with a clear error,
+        // and reconnect_obs works after an unexpected disconnect.
+        this.obs.on('ConnectionClosed', () => {
+            this.connected = false;
+        });
+        this.obs.on('ConnectionError', () => {
+            this.connected = false;
+        });
     }
 
     /**
@@ -96,6 +106,22 @@ export class OBSAdapter {
     async setCurrentScene(sceneName: string): Promise<void> {
         this.ensureConnected();
         await this.obs.call('SetCurrentProgramScene', { sceneName });
+    }
+
+    /**
+     * Stop the active stream
+     */
+    async stopStream(): Promise<void> {
+        this.ensureConnected();
+        await this.obs.call('StopStream');
+    }
+
+    /**
+     * Stop the active recording
+     */
+    async stopRecord(): Promise<void> {
+        this.ensureConnected();
+        await this.obs.call('StopRecord');
     }
 
     /**

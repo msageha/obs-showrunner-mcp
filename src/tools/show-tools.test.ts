@@ -14,6 +14,8 @@ vi.mock('../adapters/obs-adapter.js', () => {
     return {
         OBSAdapter: vi.fn().mockImplementation(() => ({
             setCurrentScene: vi.fn().mockResolvedValue(undefined),
+            stopStream: vi.fn().mockResolvedValue(undefined),
+            stopRecord: vi.fn().mockResolvedValue(undefined),
             isConnected: vi.fn().mockReturnValue(true),
         })),
     };
@@ -131,6 +133,16 @@ describe('ShowTools', () => {
             });
 
             expect(result.success).toBe(true);
+            expect(obsAdapter.stopStream).toHaveBeenCalled();
+        });
+
+        it('should not call stopStream when blocked', async () => {
+            await showTools.startShow({ showTemplateId: 'test-show' });
+            safetyGuard.setMode('strict');
+
+            await showTools.endShow({ options: { stopStreaming: true } });
+
+            expect(obsAdapter.stopStream).not.toHaveBeenCalled();
         });
     });
 
@@ -166,7 +178,7 @@ describe('ShowTools', () => {
 
             expect(result.success).toBe(true);
             // Opening has 60 sec, + 5 min = 360 sec
-            expect(result.data?.newEndTime).toBe(360);
+            expect(result.data?.timerRemainingSec).toBe(360);
         });
     });
 

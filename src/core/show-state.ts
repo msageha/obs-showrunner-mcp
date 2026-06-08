@@ -147,8 +147,11 @@ export class ShowStateManager {
             throw new Error('No show running');
         }
 
-        if (this.state.currentSegment?.timerRemainingSec !== undefined) {
-            this.state.currentSegment.timerRemainingSec += minutes * 60;
+        if (this.state.currentSegment) {
+            // Treat a segment with no timer as 0 so extending always has an
+            // effect instead of silently doing nothing.
+            const current = this.state.currentSegment.timerRemainingSec ?? 0;
+            this.state.currentSegment.timerRemainingSec = current + minutes * 60;
         }
 
         return this.state;

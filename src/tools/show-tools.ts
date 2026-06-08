@@ -106,6 +106,14 @@ export class ShowTools {
                 }
             }
 
+            // Stop outputs if requested (already validated above)
+            if (params.options?.stopStreaming) {
+                await this.obsAdapter.stopStream();
+            }
+            if (params.options?.stopRecording) {
+                await this.obsAdapter.stopRecord();
+            }
+
             this.showState.endShow();
             this.safetyGuard.logOperation('end_show', params, true);
 
@@ -161,7 +169,7 @@ export class ShowTools {
             return {
                 success: true,
                 data: {
-                    newEndTime: state.currentSegment?.timerRemainingSec,
+                    timerRemainingSec: state.currentSegment?.timerRemainingSec,
                 },
             };
         } catch (error) {
