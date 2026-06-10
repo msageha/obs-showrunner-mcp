@@ -80,7 +80,6 @@ export class EffectTools {
                 }
             }
 
-
             return {
                 success: true,
                 data: {
@@ -122,7 +121,6 @@ export class EffectTools {
                 visible: true,
                 params: params.params ?? {},
             });
-
 
             return {
                 success: true,

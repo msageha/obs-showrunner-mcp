@@ -51,7 +51,6 @@ export class VisionTools {
                     params.imageCompressionQuality ?? DEFAULT_COMPRESSION_QUALITY,
             });
 
-
             return {
                 success: true,
                 data: { imageData, sourceName },

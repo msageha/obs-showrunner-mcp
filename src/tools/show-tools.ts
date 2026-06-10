@@ -51,7 +51,6 @@ export class ShowTools {
                 await this.obsAdapter.setCurrentScene(state.currentSegment.sceneName);
             }
 
-
             return {
                 success: true,
                 data: {
@@ -155,7 +154,6 @@ export class ShowTools {
                 }
                 await this.obsAdapter.setCurrentScene(state.currentSegment.sceneName);
             }
-
 
             return {
                 success: true,
