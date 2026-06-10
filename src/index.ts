@@ -41,7 +41,6 @@ async function main() {
             gameInputName: process.env.OBS_GAME_INPUT_NAME ?? 'Game Audio',
             seInputName: process.env.OBS_SE_INPUT_NAME ?? 'Sound Effects',
         },
-        showTemplatesPath: process.env.SHOW_TEMPLATES_PATH,
     };
 
     const { connect, start, obsAdapter } = createServer(config);

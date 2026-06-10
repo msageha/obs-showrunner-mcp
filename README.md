@@ -151,33 +151,15 @@ Environment variables:
 | `OBS_BGM_INPUT_NAME` | `BGM` | BGM source name |
 | `OBS_GAME_INPUT_NAME` | `Game Audio` | Game audio source name |
 | `OBS_SE_INPUT_NAME` | `Sound Effects` | Sound effects source name |
-| `SHOW_TEMPLATES_PATH` | - | Path to a JSON file with custom show templates |
 
 Environment variables passed by the MCP client always take precedence; a local
 `.env` file is only used as a fallback for development.
 
 ### Show Templates
 
-A built-in template with id `default` (opening / main / ending) is always
-available. Custom templates can be provided via `SHOW_TEMPLATES_PATH`,
-pointing to a JSON file containing a template object or an array of them:
-
-```json
-[
-  {
-    "id": "gaming-night",
-    "name": "Gaming Night",
-    "segments": [
-      { "id": "opening", "name": "Opening", "type": "opening", "defaultSceneName": "Intro Scene", "timerSec": 300 },
-      { "id": "game", "name": "Gameplay", "type": "game", "defaultSceneName": "Game Scene" },
-      { "id": "ending", "name": "Ending", "type": "ending", "defaultSceneName": "Outro Scene", "timerSec": 180 }
-    ]
-  }
-]
-```
-
-A custom template with id `default` overrides the built-in one. Use the
-`get_show_templates` tool to list registered templates.
+A built-in template with id `default` is always available, with three
+segments: `opening` (5 min timer), `main`, and `ending` (5 min timer). Use the
+`get_show_templates` tool to inspect it.
 
 ## Development
 

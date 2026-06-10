@@ -16,10 +16,7 @@ import { z } from 'zod';
 
 import { OBSAdapter } from './adapters/obs-adapter.js';
 import { ShowStateManager } from './core/show-state.js';
-import {
-    DEFAULT_SHOW_TEMPLATE,
-    loadTemplatesFromFile,
-} from './core/template-loader.js';
+import { DEFAULT_SHOW_TEMPLATE } from './core/default-template.js';
 import { SafetyGuard } from './safety/safety-guard.js';
 import {
     ShowTools,
@@ -53,7 +50,6 @@ export interface ServerConfig {
         gameInputName: string;
         seInputName: string;
     };
-    showTemplatesPath?: string;
 }
 
 /**
@@ -78,23 +74,7 @@ export function createServer(config: ServerConfig) {
     const showState = new ShowStateManager();
     const safetyGuard = new SafetyGuard();
 
-    // Register show templates: built-in default first, then custom templates
-    // from SHOW_TEMPLATES_PATH (a custom template with id "default" overrides
-    // the built-in one). Template errors are logged but never fatal so the
-    // server still starts and reports the problem via tool errors.
     showState.registerTemplate(DEFAULT_SHOW_TEMPLATE);
-    if (config.showTemplatesPath) {
-        try {
-            for (const template of loadTemplatesFromFile(config.showTemplatesPath)) {
-                showState.registerTemplate(template);
-            }
-        } catch (error) {
-            console.error(
-                '[obs-showrunner]',
-                error instanceof Error ? error.message : error
-            );
-        }
-    }
 
     // Apply safety config; the configured mode becomes the baseline that
     // runtime set_safety_mode calls cannot escalate beyond.
