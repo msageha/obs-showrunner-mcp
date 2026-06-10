@@ -55,7 +55,6 @@ export class ContentTools {
             if (!dryRun) {
                 await this.obsAdapter.setInputSettings(params.sourceName, settings, true);
             }
-            this.safetyGuard.logOperation('update_source_content', params, true);
 
             return {
                 success: true,
@@ -68,7 +67,6 @@ export class ContentTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('update_source_content', params, false);
             return { success: false, error: message };
         }
     }

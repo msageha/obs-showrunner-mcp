@@ -3,7 +3,6 @@
  */
 
 import type { OBSAdapter } from '../adapters/obs-adapter.js';
-import type { SafetyGuard } from '../safety/safety-guard.js';
 
 export interface ToolResult {
     success: boolean;
@@ -18,10 +17,7 @@ const DEFAULT_IMAGE_WIDTH = 1280;
 const DEFAULT_COMPRESSION_QUALITY = 75;
 
 export class VisionTools {
-    constructor(
-        private obsAdapter: OBSAdapter,
-        private safetyGuard: SafetyGuard
-    ) { }
+    constructor(private obsAdapter: OBSAdapter) { }
 
     /**
      * take_stream_snapshot tool
@@ -41,7 +37,6 @@ export class VisionTools {
                 const sceneList = await this.obsAdapter.getSceneList();
                 sourceName = sceneList.currentProgramSceneName ?? undefined;
                 if (!sourceName) {
-                    this.safetyGuard.logOperation('take_stream_snapshot', params, false);
                     return {
                         success: false,
                         error: 'No sourceName provided and no active program scene to capture',
@@ -56,7 +51,6 @@ export class VisionTools {
                     params.imageCompressionQuality ?? DEFAULT_COMPRESSION_QUALITY,
             });
 
-            this.safetyGuard.logOperation('take_stream_snapshot', params, true);
 
             return {
                 success: true,
@@ -64,7 +58,6 @@ export class VisionTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('take_stream_snapshot', params, false);
             return { success: false, error: message };
         }
     }

@@ -44,7 +44,6 @@ export class SceneTools {
             if (!dryRun) {
                 await this.obsAdapter.setCurrentScene(params.sceneName);
             }
-            this.safetyGuard.logOperation('set_scene', params, true);
             return {
                 success: true,
                 data: {
@@ -54,7 +53,6 @@ export class SceneTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('set_scene', params, false);
             return { success: false, error: message };
         }
     }

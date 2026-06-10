@@ -22,7 +22,7 @@ OBS ShowRunner transforms your LLM (Claude, ChatGPT, etc.) into an AI Director t
 ### Prerequisites
 
 - OBS Studio 31+ with WebSocket enabled (default port: 4455)
-- Node.js 18+
+- Node.js 20+
 
 ### Installation
 

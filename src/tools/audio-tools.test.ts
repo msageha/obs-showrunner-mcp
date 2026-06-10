@@ -12,7 +12,6 @@ vi.mock('../adapters/obs-adapter.js', () => {
     return {
         OBSAdapter: vi.fn().mockImplementation(() => ({
             setInputVolume: vi.fn().mockResolvedValue(undefined),
-            setInputMute: vi.fn().mockResolvedValue(undefined),
             isConnected: vi.fn().mockReturnValue(true),
         })),
     };
@@ -61,14 +60,7 @@ describe('AudioTools', () => {
             expect(obsAdapter.setInputVolume).toHaveBeenCalledWith('Mic/Aux', 0);
         });
 
-        it('should return current mood after setting', async () => {
-            await audioTools.setAudioMood({ mood: 'cinema' });
-            const currentMood = audioTools.getCurrentMood();
-
-            expect(currentMood).toBe('cinema');
-        });
-
-        it('should report per-input failures without keeping the new mood', async () => {
+        it('should report per-input failures', async () => {
             (obsAdapter.setInputVolume as ReturnType<typeof vi.fn>).mockImplementation(
                 (inputName: string) =>
                     inputName === 'BGM'
@@ -85,7 +77,6 @@ describe('AudioTools', () => {
                 'Game Audio',
                 'Sound Effects',
             ]);
-            expect(audioTools.getCurrentMood()).toBeNull();
         });
 
         it('should skip OBS calls in dry-run mode', async () => {
@@ -99,22 +90,4 @@ describe('AudioTools', () => {
         });
     });
 
-    describe('getCurrentMood', () => {
-        it('should return null when no mood is set', () => {
-            expect(audioTools.getCurrentMood()).toBeNull();
-        });
-    });
-
-    describe('getAvailableMoods', () => {
-        it('should return list of available moods', () => {
-            const moods = audioTools.getAvailableMoods();
-
-            expect(moods).toContain('talk');
-            expect(moods).toContain('hype');
-            expect(moods).toContain('game_focus');
-            expect(moods).toContain('cinema');
-            expect(moods).toContain('celebration');
-            expect(moods).toContain('mute_all');
-        });
-    });
 });

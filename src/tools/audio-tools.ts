@@ -21,8 +21,6 @@ export interface ToolResult {
 }
 
 export class AudioTools {
-    private currentMood: AudioMood | null = null;
-
     constructor(
         private obsAdapter: OBSAdapter,
         private safetyGuard: SafetyGuard,
@@ -37,12 +35,10 @@ export class AudioTools {
     async setAudioMood(params: { mood: AudioMood }): Promise<ToolResult> {
         const profile = AUDIO_MOOD_PROFILES[params.mood];
         if (!profile) {
-            this.safetyGuard.logOperation('set_audio_mood', params, false);
             return { success: false, error: `Unknown mood: ${params.mood}` };
         }
 
         if (this.safetyGuard.isDryRun()) {
-            this.safetyGuard.logOperation('set_audio_mood', params, true);
             return {
                 success: true,
                 data: { mood: params.mood, profile, dryRun: true },
@@ -75,7 +71,6 @@ export class AudioTools {
         });
 
         if (failed.length > 0) {
-            this.safetyGuard.logOperation('set_audio_mood', params, false);
             return {
                 success: false,
                 error: `Failed to set volume for: ${failed
@@ -85,26 +80,9 @@ export class AudioTools {
             };
         }
 
-        this.currentMood = params.mood;
-        this.safetyGuard.logOperation('set_audio_mood', params, true);
-
         return {
             success: true,
             data: { mood: params.mood, profile },
         };
-    }
-
-    /**
-     * Get current audio mood
-     */
-    getCurrentMood(): AudioMood | null {
-        return this.currentMood;
-    }
-
-    /**
-     * Get list of available moods
-     */
-    getAvailableMoods(): AudioMood[] {
-        return Object.keys(AUDIO_MOOD_PROFILES) as AudioMood[];
     }
 }

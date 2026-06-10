@@ -10,14 +10,6 @@ export interface OperationValidation {
     reason?: string;
 }
 
-export interface OperationLogEntry {
-    timestamp: number;
-    operation: string;
-    params: Record<string, unknown>;
-    success: boolean;
-    dryRun: boolean;
-}
-
 const DANGEROUS_OPERATIONS = new Set([
     'stop_streaming',
     'stop_recording',
@@ -25,8 +17,6 @@ const DANGEROUS_OPERATIONS = new Set([
     'delete_recording',
     'delete_profile',
 ]);
-
-const MAX_LOG_SIZE = 100;
 
 /**
  * Permissiveness ranking: a runtime setMode may only move to a mode that is
@@ -47,7 +37,6 @@ export class SafetyGuard {
         allowStopStreaming: false,
         allowStopRecording: false,
     };
-    private operationLog: OperationLogEntry[] = [];
 
     /**
      * Get current safety mode
@@ -146,46 +135,5 @@ export class SafetyGuard {
      */
     isDryRun(): boolean {
         return this.mode === 'debug';
-    }
-
-    /**
-     * Log an operation
-     */
-    logOperation(
-        operation: string,
-        params: Record<string, unknown>,
-        success: boolean
-    ): void {
-        const entry: OperationLogEntry = {
-            timestamp: Date.now(),
-            operation,
-            params,
-            success,
-            dryRun: this.isDryRun(),
-        };
-
-        this.operationLog.push(entry);
-
-        // Trim log if it exceeds max size
-        if (this.operationLog.length > MAX_LOG_SIZE) {
-            this.operationLog = this.operationLog.slice(-MAX_LOG_SIZE);
-        }
-    }
-
-    /**
-     * Get operation log
-     */
-    getOperationLog(limit?: number): OperationLogEntry[] {
-        if (limit) {
-            return this.operationLog.slice(-limit);
-        }
-        return [...this.operationLog];
-    }
-
-    /**
-     * Clear operation log
-     */
-    clearOperationLog(): void {
-        this.operationLog = [];
     }
 }

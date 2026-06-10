@@ -206,17 +206,6 @@ export class OBSAdapter {
     }
 
     /**
-     * Set input mute state
-     */
-    async setInputMute(inputName: string, muted: boolean): Promise<void> {
-        this.ensureConnected();
-        await this.obs.call('SetInputMute', {
-            inputName,
-            inputMuted: muted,
-        });
-    }
-
-    /**
      * Get OBS stats (CPU, FPS, dropped frames)
      */
     async getStats(): Promise<OBSStats> {
@@ -256,12 +245,5 @@ export class OBSAdapter {
             sceneItemId,
             sceneItemEnabled: enabled,
         });
-    }
-
-    /**
-     * Get the raw OBS WebSocket instance for advanced operations
-     */
-    getRawClient(): OBSWebSocket {
-        return this.obs;
     }
 }

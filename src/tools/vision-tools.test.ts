@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { VisionTools } from './vision-tools.js';
 import { OBSAdapter } from '../adapters/obs-adapter.js';
-import { SafetyGuard } from '../safety/safety-guard.js';
 
 // Mock OBS Adapter
 vi.mock('../adapters/obs-adapter.js', () => {
@@ -25,12 +24,10 @@ vi.mock('../adapters/obs-adapter.js', () => {
 describe('VisionTools', () => {
     let visionTools: VisionTools;
     let obsAdapter: OBSAdapter;
-    let safetyGuard: SafetyGuard;
 
     beforeEach(() => {
         obsAdapter = new OBSAdapter();
-        safetyGuard = new SafetyGuard();
-        visionTools = new VisionTools(obsAdapter, safetyGuard);
+        visionTools = new VisionTools(obsAdapter);
     });
 
     describe('takeStreamSnapshot', () => {

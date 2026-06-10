@@ -137,21 +137,4 @@ describe('SafetyGuard', () => {
         });
     });
 
-    describe('operation logging', () => {
-        it('should log operations', () => {
-            guard.logOperation('switch_scene', { sceneName: 'Scene 1' }, true);
-            const logs = guard.getOperationLog(1);
-            expect(logs).toHaveLength(1);
-            expect(logs[0].operation).toBe('switch_scene');
-            expect(logs[0].success).toBe(true);
-        });
-
-        it('should limit log size', () => {
-            for (let i = 0; i < 150; i++) {
-                guard.logOperation('test_op', {}, true);
-            }
-            const logs = guard.getOperationLog();
-            expect(logs.length).toBeLessThanOrEqual(100);
-        });
-    });
 });

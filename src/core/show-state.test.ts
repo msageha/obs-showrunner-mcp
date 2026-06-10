@@ -29,7 +29,6 @@ describe('ShowStateManager', () => {
                     name: 'Main Content',
                     type: 'talk',
                     defaultSceneName: 'Main Scene',
-                    defaultAudioMood: 'talk',
                 },
                 {
                     id: 'ending',
@@ -39,7 +38,6 @@ describe('ShowStateManager', () => {
                     timerSec: 30,
                 },
             ],
-            defaultAudioMood: 'talk',
         };
     });
 

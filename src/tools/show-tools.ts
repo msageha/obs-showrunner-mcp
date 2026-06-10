@@ -51,7 +51,6 @@ export class ShowTools {
                 await this.obsAdapter.setCurrentScene(state.currentSegment.sceneName);
             }
 
-            this.safetyGuard.logOperation('start_show', params, true);
 
             return {
                 success: true,
@@ -63,7 +62,6 @@ export class ShowTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('start_show', params, false);
             return {
                 success: false,
                 error: message,
@@ -121,7 +119,6 @@ export class ShowTools {
             }
 
             this.showState.endShow();
-            this.safetyGuard.logOperation('end_show', params, true);
 
             return {
                 success: true,
@@ -129,7 +126,6 @@ export class ShowTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('end_show', params, false);
             return { success: false, error: message };
         }
     }
@@ -160,7 +156,6 @@ export class ShowTools {
                 await this.obsAdapter.setCurrentScene(state.currentSegment.sceneName);
             }
 
-            this.safetyGuard.logOperation('switch_segment', params, true);
 
             return {
                 success: true,
@@ -172,7 +167,6 @@ export class ShowTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('switch_segment', params, false);
             return { success: false, error: message };
         }
     }
@@ -183,7 +177,6 @@ export class ShowTools {
     async extendSegment(params: { minutes: number }): Promise<ToolResult> {
         try {
             const state = this.showState.extendSegment(params.minutes);
-            this.safetyGuard.logOperation('extend_segment', params, true);
 
             return {
                 success: true,
@@ -193,7 +186,6 @@ export class ShowTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('extend_segment', params, false);
             return { success: false, error: message };
         }
     }

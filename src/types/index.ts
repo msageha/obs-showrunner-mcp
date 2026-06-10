@@ -74,8 +74,6 @@ export interface SegmentTemplate {
     name: string;
     type: SegmentType;
     defaultSceneName?: string;
-    defaultOverlays?: string[];
-    defaultAudioMood?: AudioMood;
     timerSec?: number;
 }
 
@@ -87,8 +85,6 @@ export interface ShowTemplate {
     name: string;
     description?: string;
     segments: SegmentTemplate[];
-    defaultBgmProfile?: string;
-    defaultAudioMood?: AudioMood;
 }
 
 /**

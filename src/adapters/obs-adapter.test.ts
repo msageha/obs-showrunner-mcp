@@ -252,21 +252,6 @@ describe('OBSAdapter', () => {
         });
     });
 
-    describe('setInputMute', () => {
-        it('should mute input', async () => {
-            mockOBS.connect.mockResolvedValueOnce(undefined);
-            mockOBS.call.mockResolvedValueOnce(undefined);
-
-            await adapter.connect('ws://localhost:4455');
-            await adapter.setInputMute('Mic/Aux', true);
-
-            expect(mockOBS.call).toHaveBeenCalledWith('SetInputMute', {
-                inputName: 'Mic/Aux',
-                inputMuted: true,
-            });
-        });
-    });
-
     describe('getStats', () => {
         it('should return OBS stats', async () => {
             mockOBS.connect.mockResolvedValueOnce(undefined);

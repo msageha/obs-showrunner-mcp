@@ -93,7 +93,7 @@ export function createServer(config: ServerConfig) {
         seInputName: 'Sound Effects',
     });
     const effectTools = new EffectTools(obsAdapter, showState, safetyGuard);
-    const visionTools = new VisionTools(obsAdapter, safetyGuard);
+    const visionTools = new VisionTools(obsAdapter);
     const contentTools = new ContentTools(obsAdapter, safetyGuard);
     const sceneTools = new SceneTools(obsAdapter, safetyGuard);
 

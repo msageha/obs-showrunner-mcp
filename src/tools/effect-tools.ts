@@ -80,7 +80,6 @@ export class EffectTools {
                 }
             }
 
-            this.safetyGuard.logOperation('trigger_effect', params, true);
 
             return {
                 success: true,
@@ -94,7 +93,6 @@ export class EffectTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('trigger_effect', params, false);
             return { success: false, error: message };
         }
     }
@@ -125,7 +123,6 @@ export class EffectTools {
                 params: params.params ?? {},
             });
 
-            this.safetyGuard.logOperation('show_overlay', params, true);
 
             return {
                 success: true,
@@ -137,7 +134,6 @@ export class EffectTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('show_overlay', params, false);
             return { success: false, error: message };
         }
     }
@@ -160,7 +156,6 @@ export class EffectTools {
             }
 
             this.showState.setOverlayVisible(params.overlayId, false);
-            this.safetyGuard.logOperation('hide_overlay', params, true);
 
             return {
                 success: true,
@@ -172,7 +167,6 @@ export class EffectTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('hide_overlay', params, false);
             return { success: false, error: message };
         }
     }
@@ -189,7 +183,6 @@ export class EffectTools {
             };
 
             this.highlights.push(highlight);
-            this.safetyGuard.logOperation('mark_highlight', params, true);
 
             return {
                 success: true,
@@ -201,7 +194,6 @@ export class EffectTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('mark_highlight', params, false);
             return { success: false, error: message };
         }
     }
@@ -211,12 +203,5 @@ export class EffectTools {
      */
     getHighlights(): Highlight[] {
         return [...this.highlights];
-    }
-
-    /**
-     * Clear all highlights
-     */
-    clearHighlights(): void {
-        this.highlights = [];
     }
 }
