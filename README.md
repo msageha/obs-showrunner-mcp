@@ -24,6 +24,11 @@ OBS ShowRunner transforms your LLM (Claude, ChatGPT, etc.) into an AI Director t
 - OBS Studio 31+ with WebSocket enabled (default port: 4455)
 - Node.js 20+
 
+To enable the WebSocket server in OBS: **Tools → WebSocket Server Settings**,
+check "Enable WebSocket server", and click "Show Connect Info" to get the
+password. Use these values for `OBS_WEBSOCKET_URL` / `OBS_WEBSOCKET_PASSWORD`
+below.
+
 ### Installation
 
 ```bash
@@ -32,7 +37,33 @@ npm install -g obs-showrunner-mcp
 
 # Or use npx directly (no installation required)
 npx obs-showrunner-mcp
+
+# Or install straight from GitHub (no npm release needed;
+# the `prepare` script builds the server on install)
+npx github:msageha/obs-showrunner-mcp
 ```
+
+### Configure Claude Code
+
+```bash
+claude mcp add obs-showrunner \
+  --env OBS_WEBSOCKET_URL=ws://localhost:4455 \
+  --env OBS_WEBSOCKET_PASSWORD=your_password \
+  -- npx -y obs-showrunner-mcp
+```
+
+Or pull directly from GitHub:
+
+```bash
+claude mcp add obs-showrunner \
+  --env OBS_WEBSOCKET_URL=ws://localhost:4455 \
+  --env OBS_WEBSOCKET_PASSWORD=your_password \
+  -- npx -y github:msageha/obs-showrunner-mcp
+```
+
+By default the server is registered for the current project only; add
+`--scope user` to make it available everywhere. Run `/mcp` inside Claude Code
+to verify the connection.
 
 ### Configure Claude Desktop
 
