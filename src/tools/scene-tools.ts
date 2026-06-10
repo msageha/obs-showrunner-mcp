@@ -40,11 +40,17 @@ export class SceneTools {
         sceneName: string;
     }): Promise<ToolResult> {
         try {
-            await this.obsAdapter.setCurrentScene(params.sceneName);
+            const dryRun = this.safetyGuard.isDryRun();
+            if (!dryRun) {
+                await this.obsAdapter.setCurrentScene(params.sceneName);
+            }
             this.safetyGuard.logOperation('set_scene', params, true);
             return {
                 success: true,
-                data: { sceneName: params.sceneName },
+                data: {
+                    sceneName: params.sceneName,
+                    ...(dryRun ? { dryRun: true } : {}),
+                },
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';

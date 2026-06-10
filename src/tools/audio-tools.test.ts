@@ -6,7 +6,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AudioTools } from './audio-tools.js';
 import { OBSAdapter } from '../adapters/obs-adapter.js';
 import { SafetyGuard } from '../safety/safety-guard.js';
-import { AUDIO_MOOD_PROFILES } from '../types/index.js';
 
 // Mock OBS Adapter
 vi.mock('../adapters/obs-adapter.js', () => {
@@ -67,6 +66,36 @@ describe('AudioTools', () => {
             const currentMood = audioTools.getCurrentMood();
 
             expect(currentMood).toBe('cinema');
+        });
+
+        it('should report per-input failures without keeping the new mood', async () => {
+            (obsAdapter.setInputVolume as ReturnType<typeof vi.fn>).mockImplementation(
+                (inputName: string) =>
+                    inputName === 'BGM'
+                        ? Promise.reject(new Error('No input was found'))
+                        : Promise.resolve()
+            );
+
+            const result = await audioTools.setAudioMood({ mood: 'talk' });
+
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('BGM');
+            expect(result.data?.applied).toEqual([
+                'Mic/Aux',
+                'Game Audio',
+                'Sound Effects',
+            ]);
+            expect(audioTools.getCurrentMood()).toBeNull();
+        });
+
+        it('should skip OBS calls in dry-run mode', async () => {
+            safetyGuard.configure({ mode: 'debug' });
+
+            const result = await audioTools.setAudioMood({ mood: 'talk' });
+
+            expect(result.success).toBe(true);
+            expect(result.data?.dryRun).toBe(true);
+            expect(obsAdapter.setInputVolume).not.toHaveBeenCalled();
         });
     });
 

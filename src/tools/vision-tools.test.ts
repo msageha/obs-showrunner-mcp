@@ -41,7 +41,11 @@ describe('VisionTools', () => {
             expect(result.data?.imageData).toContain('data:image/png');
             expect(obsAdapter.getSourceScreenshot).toHaveBeenCalledWith(
                 'Program Scene',
-                'png'
+                {
+                    imageFormat: 'jpg',
+                    imageWidth: 1280,
+                    imageCompressionQuality: 75,
+                }
             );
         });
 
@@ -64,17 +68,26 @@ describe('VisionTools', () => {
 
             expect(obsAdapter.getSourceScreenshot).toHaveBeenCalledWith(
                 'Game Capture',
-                'png'
+                {
+                    imageFormat: 'jpg',
+                    imageWidth: 1280,
+                    imageCompressionQuality: 75,
+                }
             );
         });
 
-        it('should support different image formats', async () => {
+        it('should support overriding format and width', async () => {
             await visionTools.takeStreamSnapshot({
                 sourceName: 'Webcam',
-                imageFormat: 'jpg',
+                imageFormat: 'png',
+                imageWidth: 640,
             });
 
-            expect(obsAdapter.getSourceScreenshot).toHaveBeenCalledWith('Webcam', 'jpg');
+            expect(obsAdapter.getSourceScreenshot).toHaveBeenCalledWith('Webcam', {
+                imageFormat: 'png',
+                imageWidth: 640,
+                imageCompressionQuality: 75,
+            });
         });
     });
 });

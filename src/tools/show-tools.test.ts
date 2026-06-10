@@ -7,13 +7,14 @@ import { ShowTools } from './show-tools.js';
 import { ShowStateManager } from '../core/show-state.js';
 import { OBSAdapter } from '../adapters/obs-adapter.js';
 import { SafetyGuard } from '../safety/safety-guard.js';
-import type { ShowTemplate } from '../types/index.js';
+import type { SegmentState, ShowTemplate } from '../types/index.js';
 
 // Mock OBS Adapter
 vi.mock('../adapters/obs-adapter.js', () => {
     return {
         OBSAdapter: vi.fn().mockImplementation(() => ({
             setCurrentScene: vi.fn().mockResolvedValue(undefined),
+            applySmoothTransition: vi.fn().mockResolvedValue(true),
             stopStream: vi.fn().mockResolvedValue(undefined),
             stopRecord: vi.fn().mockResolvedValue(undefined),
             isConnected: vi.fn().mockReturnValue(true),
@@ -41,7 +42,6 @@ describe('ShowTools', () => {
                     id: 'opening',
                     name: 'Opening',
                     type: 'opening',
-                    defaultLayoutId: 'layout-1',
                     defaultSceneName: 'Opening Scene',
                     timerSec: 60,
                 },
@@ -49,14 +49,12 @@ describe('ShowTools', () => {
                     id: 'main',
                     name: 'Main',
                     type: 'talk',
-                    defaultLayoutId: 'layout-2',
                     defaultSceneName: 'Main Scene',
                 },
                 {
                     id: 'ending',
                     name: 'Ending',
                     type: 'ending',
-                    defaultLayoutId: 'layout-3',
                     defaultSceneName: 'Ending Scene',
                 },
             ],
@@ -74,7 +72,7 @@ describe('ShowTools', () => {
 
             expect(result.success).toBe(true);
             expect(result.data?.showId).toBe('test-show');
-            expect((result.data?.currentSegment as any)?.id).toBe('opening');
+            expect((result.data?.currentSegment as SegmentState)?.id).toBe('opening');
         });
 
         it('should switch OBS scene on start', async () => {
@@ -89,7 +87,7 @@ describe('ShowTools', () => {
                 options: { skipOpening: true },
             });
 
-            expect((result.data?.currentSegment as any)?.id).toBe('main');
+            expect((result.data?.currentSegment as SegmentState)?.id).toBe('main');
         });
 
         it('should return error for unknown template', async () => {
@@ -125,8 +123,7 @@ describe('ShowTools', () => {
 
         it('should allow stop_streaming in normal mode when configured', async () => {
             await showTools.startShow({ showTemplateId: 'test-show' });
-            safetyGuard.setMode('normal');
-            safetyGuard.configure({ allowStopStreaming: true });
+            safetyGuard.configure({ mode: 'normal', allowStopStreaming: true });
 
             const result = await showTools.endShow({
                 options: { stopStreaming: true },
@@ -152,7 +149,7 @@ describe('ShowTools', () => {
             const result = await showTools.switchSegment({ segmentId: 'main' });
 
             expect(result.success).toBe(true);
-            expect((result.data?.currentSegment as any)?.id).toBe('main');
+            expect((result.data?.currentSegment as SegmentState)?.id).toBe('main');
         });
 
         it('should switch OBS scene', async () => {
@@ -162,12 +159,45 @@ describe('ShowTools', () => {
             expect(obsAdapter.setCurrentScene).toHaveBeenCalledWith('Main Scene');
         });
 
+        it('should apply a smooth transition when requested', async () => {
+            await showTools.startShow({ showTemplateId: 'test-show' });
+            const result = await showTools.switchSegment({
+                segmentId: 'main',
+                options: { smoothTransition: true, transitionDurationMs: 500 },
+            });
+
+            expect(result.success).toBe(true);
+            expect(result.data?.transitionApplied).toBe(true);
+            expect(obsAdapter.applySmoothTransition).toHaveBeenCalledWith(500);
+            expect(obsAdapter.setCurrentScene).toHaveBeenCalledWith('Main Scene');
+        });
+
+        it('should not apply a transition when not requested', async () => {
+            await showTools.startShow({ showTemplateId: 'test-show' });
+            await showTools.switchSegment({ segmentId: 'main' });
+
+            expect(obsAdapter.applySmoothTransition).not.toHaveBeenCalled();
+        });
+
         it('should return error for unknown segment', async () => {
             await showTools.startShow({ showTemplateId: 'test-show' });
             const result = await showTools.switchSegment({ segmentId: 'unknown' });
 
             expect(result.success).toBe(false);
             expect(result.error).toContain('not found');
+        });
+    });
+
+    describe('dry-run (debug mode)', () => {
+        it('should not touch OBS but still update show state', async () => {
+            safetyGuard.configure({ mode: 'debug' });
+
+            const result = await showTools.startShow({ showTemplateId: 'test-show' });
+
+            expect(result.success).toBe(true);
+            expect(result.data?.dryRun).toBe(true);
+            expect(obsAdapter.setCurrentScene).not.toHaveBeenCalled();
+            expect(showState.isShowRunning()).toBe(true);
         });
     });
 
@@ -189,7 +219,7 @@ describe('ShowTools', () => {
 
             expect(result.success).toBe(true);
             expect(result.data?.showId).toBe('test-show');
-            expect((result.data?.segments as any[])?.length).toBe(3);
+            expect((result.data?.segments as unknown[])?.length).toBe(3);
         });
 
         it('should return null state when no show running', () => {

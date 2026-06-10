@@ -3,7 +3,7 @@
  * Provides a clean interface for OBS WebSocket operations
  */
 
-import OBSWebSocket from 'obs-websocket-js';
+import OBSWebSocket, { type OBSRequestTypes } from 'obs-websocket-js';
 
 export interface SceneListResponse {
     currentProgramSceneName: string | null;
@@ -32,6 +32,12 @@ export interface OBSVersion {
     obsWebSocketVersion: string;
     rpcVersion: number;
     platform: string;
+}
+
+export interface ScreenshotOptions {
+    imageFormat?: string;
+    imageWidth?: number;
+    imageCompressionQuality?: number;
 }
 
 export class OBSAdapter {
@@ -97,6 +103,7 @@ export class OBSAdapter {
     async getSceneList(): Promise<SceneListResponse> {
         this.ensureConnected();
         const response = await this.obs.call('GetSceneList');
+        // The library types scenes as JsonObject[]; narrow to the known shape.
         return response as unknown as SceneListResponse;
     }
 
@@ -106,6 +113,30 @@ export class OBSAdapter {
     async setCurrentScene(sceneName: string): Promise<void> {
         this.ensureConnected();
         await this.obs.call('SetCurrentProgramScene', { sceneName });
+    }
+
+    /**
+     * Set the current scene transition to a fade and configure its duration.
+     * Transition display names are localized, so the fade transition is looked
+     * up by kind instead of by name. Returns false when no fade transition
+     * exists (best effort; the scene switch itself is unaffected).
+     */
+    async applySmoothTransition(durationMs: number): Promise<boolean> {
+        this.ensureConnected();
+        const { transitions } = await this.obs.call('GetSceneTransitionList');
+        const fade = (transitions as Array<Record<string, unknown>>).find(
+            (t) => t.transitionKind === 'fade_transition'
+        );
+        if (!fade || typeof fade.transitionName !== 'string') {
+            return false;
+        }
+        await this.obs.call('SetCurrentSceneTransition', {
+            transitionName: fade.transitionName,
+        });
+        await this.obs.call('SetCurrentSceneTransitionDuration', {
+            transitionDuration: durationMs,
+        });
+        return true;
     }
 
     /**
@@ -125,19 +156,24 @@ export class OBSAdapter {
     }
 
     /**
-     * Get screenshot of source or program output
+     * Get screenshot of a source or scene as a base64 data URI
      */
     async getSourceScreenshot(
-        sourceName?: string,
-        imageFormat: string = 'png'
+        sourceName: string,
+        options: ScreenshotOptions = {}
     ): Promise<string> {
         this.ensureConnected();
-        const params: Record<string, unknown> = { imageFormat };
-        if (sourceName) {
-            params.sourceName = sourceName;
-        }
-        const response = await this.obs.call('GetSourceScreenshot', params as any);
-        return (response as any).imageData;
+        const response = await this.obs.call('GetSourceScreenshot', {
+            sourceName,
+            imageFormat: options.imageFormat ?? 'jpg',
+            ...(options.imageWidth !== undefined
+                ? { imageWidth: options.imageWidth }
+                : {}),
+            ...(options.imageCompressionQuality !== undefined
+                ? { imageCompressionQuality: options.imageCompressionQuality }
+                : {}),
+        });
+        return response.imageData;
     }
 
     /**
@@ -151,9 +187,11 @@ export class OBSAdapter {
         this.ensureConnected();
         await this.obs.call('SetInputSettings', {
             inputName,
-            inputSettings: settings,
+            // Settings are plain JSON by construction; the library's JsonObject
+            // is just stricter than Record<string, unknown>.
+            inputSettings: settings as OBSRequestTypes['SetInputSettings']['inputSettings'],
             overlay,
-        } as any);
+        });
     }
 
     /**
@@ -164,7 +202,7 @@ export class OBSAdapter {
         await this.obs.call('SetInputVolume', {
             inputName,
             inputVolumeMul: volume,
-        } as any);
+        });
     }
 
     /**
@@ -175,7 +213,7 @@ export class OBSAdapter {
         await this.obs.call('SetInputMute', {
             inputName,
             inputMuted: muted,
-        } as any);
+        });
     }
 
     /**
@@ -210,14 +248,14 @@ export class OBSAdapter {
         const { sceneItemId } = await this.obs.call('GetSceneItemId', {
             sceneName,
             sourceName,
-        } as any) as any;
+        });
 
         // Then set its enabled state
         await this.obs.call('SetSceneItemEnabled', {
             sceneName,
             sceneItemId,
             sceneItemEnabled: enabled,
-        } as any);
+        });
     }
 
     /**

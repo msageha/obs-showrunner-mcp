@@ -73,7 +73,6 @@ export interface SegmentTemplate {
     id: string;
     name: string;
     type: SegmentType;
-    defaultLayoutId: string;
     defaultSceneName?: string;
     defaultOverlays?: string[];
     defaultAudioMood?: AudioMood;
@@ -159,79 +158,6 @@ export type EffectType =
     | 'confetti'
     | string;
 
-/**
- * Effect trigger options
- */
-export interface EffectOptions {
-    effectType: EffectType;
-    intensity?: number; // 0.0 - 1.0
-    durationSec?: number;
-    autoRevert?: boolean;
-    message?: string;
-}
-
-// ============================================================================
-// Layout Types
-// ============================================================================
-
-/**
- * Layout source definition
- */
-export interface LayoutSource {
-    name: string;
-    type: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    visible: boolean;
-}
-
-/**
- * Layout audio configuration
- */
-export interface LayoutAudioConfig {
-    inputName: string;
-    volume: number;
-    muted: boolean;
-}
-
-/**
- * Layout template
- */
-export interface LayoutTemplate {
-    id: string;
-    name: string;
-    sceneName: string;
-    sources: LayoutSource[];
-    audio?: LayoutAudioConfig[];
-}
-
-// ============================================================================
-// Event Types
-// ============================================================================
-
-/**
- * Event type identifiers
- */
-export type EventType =
-    | 'engagement_spike'
-    | 'keyword_detected'
-    | 'segment_timeout'
-    | 'scene_changed'
-    | 'stream_started'
-    | 'stream_stopped'
-    | string;
-
-/**
- * Event payload
- */
-export interface ShowEvent {
-    type: EventType;
-    timestamp: number;
-    payload: Record<string, unknown>;
-}
-
 // ============================================================================
 // Highlight Types
 // ============================================================================
@@ -256,44 +182,4 @@ export interface Highlight {
 export interface OBSConnectionConfig {
     websocketUrl: string;
     password?: string;
-}
-
-/**
- * OBS health status
- */
-export interface OBSHealth {
-    connected: boolean;
-    obsVersion: string | null;
-    cpuUsage: number | null;
-    fps: number | null;
-    droppedFrames: number | null;
-}
-
-// ============================================================================
-// Engagement Metrics Types
-// ============================================================================
-
-/**
- * Engagement metrics
- */
-export interface EngagementMetrics {
-    commentsPerMin: number;
-    uniqueViewers: number | null;
-    donationCount: number;
-    donationAmount: number;
-    emojiRatio: number;
-    engagementScore: number; // 0.0 - 1.0
-}
-
-// ============================================================================
-// Runtime Stats Types
-// ============================================================================
-
-/**
- * Runtime statistics
- */
-export interface RuntimeStats {
-    uptimeSec: number;
-    toolCallCounts: Record<string, number>;
-    errorsLast10Min: number;
 }

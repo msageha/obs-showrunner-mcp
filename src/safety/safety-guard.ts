@@ -28,8 +28,20 @@ const DANGEROUS_OPERATIONS = new Set([
 
 const MAX_LOG_SIZE = 100;
 
+/**
+ * Permissiveness ranking: a runtime setMode may only move to a mode that is
+ * not more permissive than the baseline configured at startup. debug is the
+ * least permissive (dry-run, nothing executes), normal the most.
+ */
+const MODE_PERMISSIVENESS: Record<SafetyMode, number> = {
+    debug: 0,
+    strict: 1,
+    normal: 2,
+};
+
 export class SafetyGuard {
     private mode: SafetyMode = 'strict';
+    private baselineMode: SafetyMode = 'strict';
     private config: SafetyConfig = {
         mode: 'strict',
         allowStopStreaming: false,
@@ -45,18 +57,32 @@ export class SafetyGuard {
     }
 
     /**
-     * Set safety mode
+     * Set safety mode at runtime. Escalating above the baseline configured at
+     * startup is rejected so an MCP client cannot lift its own restrictions
+     * (e.g. strict -> normal to unlock stop_streaming).
      */
     setMode(mode: SafetyMode): void {
+        if (MODE_PERMISSIVENESS[mode] > MODE_PERMISSIVENESS[this.baselineMode]) {
+            throw new Error(
+                `Cannot switch safety mode to '${mode}': it is more permissive than ` +
+                `the configured baseline '${this.baselineMode}'. Change SAFETY_MODE ` +
+                'in the server environment instead.'
+            );
+        }
         this.mode = mode;
         this.config.mode = mode;
     }
 
     /**
-     * Configure safety settings
+     * Configure safety settings (startup configuration).
+     * The configured mode becomes the baseline for runtime mode changes.
      */
     configure(config: Partial<SafetyConfig>): void {
         this.config = { ...this.config, ...config };
+        if (config.mode) {
+            this.mode = config.mode;
+            this.baselineMode = config.mode;
+        }
     }
 
     /**

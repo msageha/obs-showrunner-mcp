@@ -1,5 +1,8 @@
 /**
  * Effect Tools - MCP Tools for visual effects, overlays, and highlights
+ *
+ * Overlays and effects are mapped to OBS scene items by name: showing an
+ * overlay enables the scene item with that name in the current program scene.
  */
 
 import { randomUUID } from 'crypto';
@@ -14,6 +17,8 @@ export interface ToolResult {
     error?: string;
 }
 
+const DEFAULT_EFFECT_DURATION_SEC = 5;
+
 export class EffectTools {
     private highlights: Highlight[] = [];
 
@@ -24,24 +29,67 @@ export class EffectTools {
     ) { }
 
     /**
+     * Resolve the current program scene name, or throw if none is active.
+     */
+    private async getCurrentSceneName(): Promise<string> {
+        const sceneList = await this.obsAdapter.getSceneList();
+        const sceneName = sceneList.currentProgramSceneName;
+        if (!sceneName) {
+            throw new Error('No active program scene');
+        }
+        return sceneName;
+    }
+
+    /**
      * trigger_effect tool
+     * Enables the scene item named after the effect type in the current
+     * program scene, then disables it again after durationSec (auto-revert).
      */
     async triggerEffect(params: {
         effectType: EffectType;
-        intensity?: number;
         durationSec?: number;
         autoRevert?: boolean;
-        message?: string;
     }): Promise<ToolResult> {
         try {
+            const durationSec = params.durationSec ?? DEFAULT_EFFECT_DURATION_SEC;
+            const autoRevert = params.autoRevert ?? true;
+            const dryRun = this.safetyGuard.isDryRun();
+
+            let sceneName: string | undefined;
+            if (!dryRun) {
+                sceneName = await this.getCurrentSceneName();
+                await this.obsAdapter.setSceneItemEnabled(
+                    sceneName,
+                    params.effectType,
+                    true
+                );
+
+                if (autoRevert) {
+                    const revertScene = sceneName;
+                    const timer = setTimeout(() => {
+                        this.obsAdapter
+                            .setSceneItemEnabled(revertScene, params.effectType, false)
+                            .catch((error: unknown) => {
+                                console.error(
+                                    `[obs-showrunner] Failed to revert effect '${params.effectType}':`,
+                                    error instanceof Error ? error.message : error
+                                );
+                            });
+                    }, durationSec * 1000);
+                    timer.unref?.();
+                }
+            }
+
             this.safetyGuard.logOperation('trigger_effect', params, true);
 
             return {
                 success: true,
                 data: {
                     effectType: params.effectType,
-                    intensity: params.intensity ?? 0.5,
-                    message: params.message,
+                    sceneName,
+                    durationSec,
+                    autoRevert,
+                    ...(dryRun ? { dryRun: true } : {}),
                 },
             };
         } catch (error) {
@@ -53,13 +101,24 @@ export class EffectTools {
 
     /**
      * show_overlay tool
+     * Enables the scene item named overlayId in the current program scene.
      */
     async showOverlay(params: {
         overlayId: string;
         params?: Record<string, unknown>;
     }): Promise<ToolResult> {
         try {
-            // Add overlay to state
+            const dryRun = this.safetyGuard.isDryRun();
+
+            if (!dryRun) {
+                const sceneName = await this.getCurrentSceneName();
+                await this.obsAdapter.setSceneItemEnabled(
+                    sceneName,
+                    params.overlayId,
+                    true
+                );
+            }
+
             this.showState.addOverlay({
                 id: params.overlayId,
                 visible: true,
@@ -73,6 +132,7 @@ export class EffectTools {
                 data: {
                     overlayId: params.overlayId,
                     visible: true,
+                    ...(dryRun ? { dryRun: true } : {}),
                 },
             };
         } catch (error) {
@@ -84,15 +144,31 @@ export class EffectTools {
 
     /**
      * hide_overlay tool
+     * Disables the scene item named overlayId in the current program scene.
      */
     async hideOverlay(params: { overlayId: string }): Promise<ToolResult> {
         try {
+            const dryRun = this.safetyGuard.isDryRun();
+
+            if (!dryRun) {
+                const sceneName = await this.getCurrentSceneName();
+                await this.obsAdapter.setSceneItemEnabled(
+                    sceneName,
+                    params.overlayId,
+                    false
+                );
+            }
+
             this.showState.setOverlayVisible(params.overlayId, false);
             this.safetyGuard.logOperation('hide_overlay', params, true);
 
             return {
                 success: true,
-                data: { overlayId: params.overlayId, visible: false },
+                data: {
+                    overlayId: params.overlayId,
+                    visible: false,
+                    ...(dryRun ? { dryRun: true } : {}),
+                },
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';

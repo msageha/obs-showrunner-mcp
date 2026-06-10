@@ -3,6 +3,7 @@
  * Main server entry point with tool and resource registration
  */
 
+import { createRequire } from 'module';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -15,6 +16,10 @@ import { z } from 'zod';
 
 import { OBSAdapter } from './adapters/obs-adapter.js';
 import { ShowStateManager } from './core/show-state.js';
+import {
+    DEFAULT_SHOW_TEMPLATE,
+    loadTemplatesFromFile,
+} from './core/template-loader.js';
 import { SafetyGuard } from './safety/safety-guard.js';
 import {
     ShowTools,
@@ -30,6 +35,11 @@ import { ContentTools } from './tools/content-tools.js';
 import { SceneTools } from './tools/scene-tools.js';
 import type { OBSConnectionConfig, SafetyMode } from './types/index.js';
 
+const require = createRequire(import.meta.url);
+const { version: packageVersion } = require('../package.json') as {
+    version: string;
+};
+
 export interface ServerConfig {
     obs: OBSConnectionConfig;
     safety?: {
@@ -43,6 +53,7 @@ export interface ServerConfig {
         gameInputName: string;
         seInputName: string;
     };
+    showTemplatesPath?: string;
 }
 
 /**
@@ -52,7 +63,7 @@ export function createServer(config: ServerConfig) {
     const server = new Server(
         {
             name: 'obs-showrunner-mcp',
-            version: '0.1.0',
+            version: packageVersion,
         },
         {
             capabilities: {
@@ -67,17 +78,31 @@ export function createServer(config: ServerConfig) {
     const showState = new ShowStateManager();
     const safetyGuard = new SafetyGuard();
 
-    // Apply safety config
-    if (config.safety?.mode) {
-        safetyGuard.setMode(config.safety.mode);
+    // Register show templates: built-in default first, then custom templates
+    // from SHOW_TEMPLATES_PATH (a custom template with id "default" overrides
+    // the built-in one). Template errors are logged but never fatal so the
+    // server still starts and reports the problem via tool errors.
+    showState.registerTemplate(DEFAULT_SHOW_TEMPLATE);
+    if (config.showTemplatesPath) {
+        try {
+            for (const template of loadTemplatesFromFile(config.showTemplatesPath)) {
+                showState.registerTemplate(template);
+            }
+        } catch (error) {
+            console.error(
+                '[obs-showrunner]',
+                error instanceof Error ? error.message : error
+            );
+        }
     }
-    if (config.safety) {
-        safetyGuard.configure({
-            mode: config.safety.mode ?? 'strict',
-            allowStopStreaming: config.safety.allowStopStreaming ?? false,
-            allowStopRecording: config.safety.allowStopRecording ?? false,
-        });
-    }
+
+    // Apply safety config; the configured mode becomes the baseline that
+    // runtime set_safety_mode calls cannot escalate beyond.
+    safetyGuard.configure({
+        mode: config.safety?.mode ?? 'strict',
+        allowStopStreaming: config.safety?.allowStopStreaming ?? false,
+        allowStopRecording: config.safety?.allowStopRecording ?? false,
+    });
 
     // Tools
     const showTools = new ShowTools(showState, obsAdapter, safetyGuard);
@@ -164,11 +189,13 @@ export function createServer(config: ServerConfig) {
                             properties: {
                                 smooth_transition: {
                                     type: 'boolean',
-                                    description: 'Use smooth transition effect',
+                                    description: 'Use a fade transition for the scene switch',
                                 },
                                 transition_duration_ms: {
                                     type: 'number',
-                                    description: 'Transition duration in milliseconds',
+                                    minimum: 50,
+                                    maximum: 20000,
+                                    description: 'Transition duration in milliseconds (50-20000)',
                                 },
                             },
                         },
@@ -184,6 +211,8 @@ export function createServer(config: ServerConfig) {
                     properties: {
                         minutes: {
                             type: 'number',
+                            minimum: 1,
+                            maximum: 120,
                             description: 'Minutes to extend (1-120)',
                         },
                     },
@@ -193,6 +222,15 @@ export function createServer(config: ServerConfig) {
             {
                 name: 'get_current_show_state',
                 description: 'Get the current show state including segments, overlays, and timers.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                },
+            },
+            {
+                name: 'get_show_templates',
+                description:
+                    'Get the list of registered show templates and their segments. Use these template IDs with start_show.',
                 inputSchema: {
                     type: 'object',
                     properties: {},
@@ -254,24 +292,38 @@ export function createServer(config: ServerConfig) {
             },
             {
                 name: 'trigger_effect',
-                description: 'Trigger a visual effect.',
+                description:
+                    'Trigger a visual effect by enabling the scene item with that name in the current program scene. The item is disabled again after durationSec unless autoRevert is false.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        effectType: { type: 'string' },
-                        intensity: { type: 'number' },
-                        durationSec: { type: 'number' },
+                        effectType: {
+                            type: 'string',
+                            description: 'Name of the effect scene item to enable',
+                        },
+                        durationSec: {
+                            type: 'number',
+                            description: 'Seconds before the effect is reverted (default 5)',
+                        },
+                        autoRevert: {
+                            type: 'boolean',
+                            description: 'Disable the effect again after durationSec (default true)',
+                        },
                     },
                     required: ['effectType'],
                 },
             },
             {
                 name: 'show_overlay',
-                description: 'Show an overlay.',
+                description:
+                    'Show an overlay by enabling the scene item with that name in the current program scene.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        overlayId: { type: 'string' },
+                        overlayId: {
+                            type: 'string',
+                            description: 'Name of the overlay scene item to enable',
+                        },
                         params: { type: 'object' },
                     },
                     required: ['overlayId'],
@@ -279,7 +331,8 @@ export function createServer(config: ServerConfig) {
             },
             {
                 name: 'hide_overlay',
-                description: 'Hide an overlay.',
+                description:
+                    'Hide an overlay by disabling the scene item with that name in the current program scene.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -290,12 +343,35 @@ export function createServer(config: ServerConfig) {
             },
             {
                 name: 'take_stream_snapshot',
-                description: 'Take a snapshot of the current stream.',
+                description:
+                    'Take a snapshot of the current stream (program scene by default) and return it as an image.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        sourceName: { type: 'string' },
+                        sourceName: {
+                            type: 'string',
+                            description: 'Source or scene to capture (default: current program scene)',
+                        },
+                        imageFormat: {
+                            type: 'string',
+                            enum: ['jpg', 'png'],
+                            description: 'Image format (default: jpg)',
+                        },
+                        imageWidth: {
+                            type: 'number',
+                            minimum: 8,
+                            maximum: 4096,
+                            description: 'Width to scale the screenshot to (default: 1280)',
+                        },
                     },
+                },
+            },
+            {
+                name: 'get_highlights',
+                description: 'Get all highlight markers recorded with mark_highlight.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
                 },
             },
             {
@@ -358,7 +434,6 @@ export function createServer(config: ServerConfig) {
                                     {
                                         url: config.obs.websocketUrl,
                                         passwordSet: !!config.obs.password,
-                                        passwordLength: config.obs.password?.length ?? 0,
                                         cwd: process.cwd(),
                                         nodeVersion: process.version,
                                     },
@@ -446,6 +521,18 @@ export function createServer(config: ServerConfig) {
                     };
                 }
 
+                case 'get_show_templates': {
+                    const templates = showState.getTemplateList();
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: JSON.stringify({ success: true, data: { templates } }, null, 2),
+                            },
+                        ],
+                    };
+                }
+
                 case 'get_obs_health': {
                     const connected = obsAdapter.isConnected();
                     let version = null;
@@ -494,10 +581,19 @@ export function createServer(config: ServerConfig) {
                 }
 
                 case 'set_audio_mood': {
-                    const params = z.object({ mood: z.string() }).parse(args);
-                    const result = await audioTools.setAudioMood({
-                        mood: params.mood as any,
-                    });
+                    const params = z
+                        .object({
+                            mood: z.enum([
+                                'talk',
+                                'game_focus',
+                                'hype',
+                                'cinema',
+                                'celebration',
+                                'mute_all',
+                            ]),
+                        })
+                        .parse(args);
+                    const result = await audioTools.setAudioMood({ mood: params.mood });
                     return {
                         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
                     };
@@ -506,8 +602,8 @@ export function createServer(config: ServerConfig) {
                 case 'trigger_effect': {
                     const params = z.object({
                         effectType: z.string(),
-                        intensity: z.number().optional(),
-                        durationSec: z.number().optional(),
+                        durationSec: z.number().positive().optional(),
+                        autoRevert: z.boolean().optional(),
                     }).parse(args);
                     const result = await effectTools.triggerEffect(params);
                     return {
@@ -535,7 +631,13 @@ export function createServer(config: ServerConfig) {
                 }
 
                 case 'take_stream_snapshot': {
-                    const params = z.object({ sourceName: z.string().optional() }).parse(args);
+                    const params = z
+                        .object({
+                            sourceName: z.string().optional(),
+                            imageFormat: z.enum(['jpg', 'png']).optional(),
+                            imageWidth: z.number().min(8).max(4096).optional(),
+                        })
+                        .parse(args);
                     const result = await visionTools.takeStreamSnapshot(params);
                     const imageData = result.success
                         ? (result.data?.imageData as string | undefined)
@@ -544,12 +646,17 @@ export function createServer(config: ServerConfig) {
                         // obs-websocket returns a data URI ("data:image/png;base64,...").
                         // MCP image content needs the bare base64 string plus a mimeType.
                         const match = /^data:(image\/[\w.+-]+);base64,(.*)$/s.exec(imageData);
+                        const mimeType = match
+                            ? match[1] === 'image/jpg'
+                                ? 'image/jpeg'
+                                : match[1]
+                            : 'image/png';
                         return {
                             content: [
                                 {
                                     type: 'image',
                                     data: match ? match[2] : imageData,
-                                    mimeType: match ? match[1] : 'image/png',
+                                    mimeType,
                                 },
                             ],
                         };
@@ -557,6 +664,22 @@ export function createServer(config: ServerConfig) {
                     return {
                         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
                         isError: !result.success,
+                    };
+                }
+
+                case 'get_highlights': {
+                    const highlights = effectTools.getHighlights();
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: JSON.stringify(
+                                    { success: true, data: { highlights } },
+                                    null,
+                                    2
+                                ),
+                            },
+                        ],
                     };
                 }
 
