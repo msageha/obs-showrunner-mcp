@@ -21,8 +21,6 @@ export interface ToolResult {
 }
 
 export class AudioTools {
-    private currentMood: AudioMood | null = null;
-
     constructor(
         private obsAdapter: OBSAdapter,
         private safetyGuard: SafetyGuard,
@@ -31,48 +29,60 @@ export class AudioTools {
 
     /**
      * set_audio_mood tool
+     * Applies all input volumes concurrently and reports per-input failures
+     * so a missing input name doesn't leave the mix silently half-applied.
      */
-    async setAudioMood(params: {
-        mood: AudioMood;
-        fadeDurationMs?: number;
-    }): Promise<ToolResult> {
-        try {
-            const profile = AUDIO_MOOD_PROFILES[params.mood];
-            if (!profile) {
-                return { success: false, error: `Unknown mood: ${params.mood}` };
-            }
+    async setAudioMood(params: { mood: AudioMood }): Promise<ToolResult> {
+        const profile = AUDIO_MOOD_PROFILES[params.mood];
+        if (!profile) {
+            return { success: false, error: `Unknown mood: ${params.mood}` };
+        }
 
-            // Apply volume settings
-            await this.obsAdapter.setInputVolume(this.config.micInputName, profile.mic);
-            await this.obsAdapter.setInputVolume(this.config.bgmInputName, profile.bgm);
-            await this.obsAdapter.setInputVolume(this.config.gameInputName, profile.game);
-            await this.obsAdapter.setInputVolume(this.config.seInputName, profile.se);
-
-            this.currentMood = params.mood;
-            this.safetyGuard.logOperation('set_audio_mood', params, true);
-
+        if (this.safetyGuard.isDryRun()) {
             return {
                 success: true,
-                data: { mood: params.mood, profile },
+                data: { mood: params.mood, profile, dryRun: true },
             };
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('set_audio_mood', params, false);
-            return { success: false, error: message };
         }
-    }
 
-    /**
-     * Get current audio mood
-     */
-    getCurrentMood(): AudioMood | null {
-        return this.currentMood;
-    }
+        const targets: Array<{ inputName: string; volume: number }> = [
+            { inputName: this.config.micInputName, volume: profile.mic },
+            { inputName: this.config.bgmInputName, volume: profile.bgm },
+            { inputName: this.config.gameInputName, volume: profile.game },
+            { inputName: this.config.seInputName, volume: profile.se },
+        ];
 
-    /**
-     * Get list of available moods
-     */
-    getAvailableMoods(): AudioMood[] {
-        return Object.keys(AUDIO_MOOD_PROFILES) as AudioMood[];
+        const results = await Promise.allSettled(
+            targets.map((t) => this.obsAdapter.setInputVolume(t.inputName, t.volume))
+        );
+
+        const applied: string[] = [];
+        const failed: Array<{ inputName: string; error: string }> = [];
+        results.forEach((result, i) => {
+            if (result.status === 'fulfilled') {
+                applied.push(targets[i].inputName);
+            } else {
+                const reason = result.reason;
+                failed.push({
+                    inputName: targets[i].inputName,
+                    error: reason instanceof Error ? reason.message : String(reason),
+                });
+            }
+        });
+
+        if (failed.length > 0) {
+            return {
+                success: false,
+                error: `Failed to set volume for: ${failed
+                    .map((f) => `${f.inputName} (${f.error})`)
+                    .join(', ')}`,
+                data: { mood: params.mood, applied, failed },
+            };
+        }
+
+        return {
+            success: true,
+            data: { mood: params.mood, profile },
+        };
     }
 }

@@ -6,7 +6,6 @@ import { z } from 'zod';
 import type { ShowStateManager } from '../core/show-state.js';
 import type { OBSAdapter } from '../adapters/obs-adapter.js';
 import type { SafetyGuard } from '../safety/safety-guard.js';
-import type { ShowState } from '../types/index.js';
 
 /**
  * Tool result type
@@ -16,6 +15,8 @@ export interface ToolResult {
     data?: Record<string, unknown>;
     error?: string;
 }
+
+const DEFAULT_TRANSITION_DURATION_MS = 300;
 
 /**
  * Show Tools class containing all show-related MCP tools
@@ -39,28 +40,27 @@ export class ShowTools {
     }): Promise<ToolResult> {
         try {
             const templateId = params.showTemplateId ?? 'default';
+            const dryRun = this.safetyGuard.isDryRun();
             const state = this.showState.startShow(templateId, {
                 skipOpening: params.options?.skipOpening,
                 startSegmentId: params.options?.startSegmentId,
             });
 
             // Switch to the segment's scene if defined
-            if (state.currentSegment?.sceneName) {
+            if (state.currentSegment?.sceneName && !dryRun) {
                 await this.obsAdapter.setCurrentScene(state.currentSegment.sceneName);
             }
-
-            this.safetyGuard.logOperation('start_show', params, true);
 
             return {
                 success: true,
                 data: {
                     showId: state.showId,
                     currentSegment: state.currentSegment,
+                    ...(dryRun ? { dryRun: true } : {}),
                 },
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('start_show', params, false);
             return {
                 success: false,
                 error: message,
@@ -94,19 +94,22 @@ export class ShowTools {
                 }
             }
 
+            const dryRun = this.safetyGuard.isDryRun();
+
             // Play ending segment if requested
             if (params.options?.playEnding) {
                 const segments = this.showState.getSegmentList();
                 const endingSegment = segments.find((s) => s.type === 'ending');
                 if (endingSegment) {
                     this.showState.switchSegment(endingSegment.id);
-                    if (endingSegment.defaultSceneName) {
+                    if (endingSegment.defaultSceneName && !dryRun) {
                         await this.obsAdapter.setCurrentScene(endingSegment.defaultSceneName);
                     }
                 }
             }
 
-            // Stop outputs if requested (already validated above)
+            // Stop outputs if requested (already validated above; in dry-run
+            // mode the validation rejects these, so this is never reached)
             if (params.options?.stopStreaming) {
                 await this.obsAdapter.stopStream();
             }
@@ -115,12 +118,13 @@ export class ShowTools {
             }
 
             this.showState.endShow();
-            this.safetyGuard.logOperation('end_show', params, true);
 
-            return { success: true };
+            return {
+                success: true,
+                ...(dryRun ? { data: { dryRun: true } } : {}),
+            };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('end_show', params, false);
             return { success: false, error: message };
         }
     }
@@ -136,24 +140,31 @@ export class ShowTools {
         };
     }): Promise<ToolResult> {
         try {
+            const dryRun = this.safetyGuard.isDryRun();
             const state = this.showState.switchSegment(params.segmentId);
 
             // Switch to the segment's scene if defined
-            if (state.currentSegment?.sceneName) {
+            let transitionApplied = false;
+            if (state.currentSegment?.sceneName && !dryRun) {
+                if (params.options?.smoothTransition) {
+                    transitionApplied = await this.obsAdapter.applySmoothTransition(
+                        params.options.transitionDurationMs ??
+                        DEFAULT_TRANSITION_DURATION_MS
+                    );
+                }
                 await this.obsAdapter.setCurrentScene(state.currentSegment.sceneName);
             }
-
-            this.safetyGuard.logOperation('switch_segment', params, true);
 
             return {
                 success: true,
                 data: {
                     currentSegment: state.currentSegment,
+                    ...(params.options?.smoothTransition ? { transitionApplied } : {}),
+                    ...(dryRun ? { dryRun: true } : {}),
                 },
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('switch_segment', params, false);
             return { success: false, error: message };
         }
     }
@@ -164,7 +175,6 @@ export class ShowTools {
     async extendSegment(params: { minutes: number }): Promise<ToolResult> {
         try {
             const state = this.showState.extendSegment(params.minutes);
-            this.safetyGuard.logOperation('extend_segment', params, true);
 
             return {
                 success: true,
@@ -174,7 +184,6 @@ export class ShowTools {
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('extend_segment', params, false);
             return { success: false, error: message };
         }
     }
@@ -230,7 +239,8 @@ export const switchSegmentSchema = z.object({
     options: z
         .object({
             smooth_transition: z.boolean().optional(),
-            transition_duration_ms: z.number().optional(),
+            // OBS accepts 50-20000ms for transition durations
+            transition_duration_ms: z.number().min(50).max(20000).optional(),
         })
         .optional(),
 });

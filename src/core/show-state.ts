@@ -9,7 +9,6 @@ import type {
     SegmentTemplate,
     SegmentState,
     OverlayState,
-    TimerState,
 } from '../types/index.js';
 
 export interface StartShowOptions {
@@ -158,10 +157,11 @@ export class ShowStateManager {
     }
 
     /**
-     * Get the current show state
+     * Get the current show state as a deep copy so callers cannot mutate
+     * internal state through nested references.
      */
     getCurrentState(): ShowState {
-        return { ...this.state };
+        return structuredClone(this.state);
     }
 
     /**

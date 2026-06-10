@@ -9,10 +9,6 @@ import dotenv from 'dotenv';
 import { createServer } from './server.js';
 
 // Redirect console.log/info/debug to stderr to prevent breaking MCP JSON-RPC on stdout
-const originalLog = console.log;
-const originalInfo = console.info;
-const originalDebug = console.debug;
-
 console.log = console.error;
 console.info = console.error;
 console.debug = console.error;
@@ -21,10 +17,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
-// Load .env from project root explicitly and force override
+// Load .env from the project root as a fallback for local development.
+// Existing process.env always wins so that env vars passed by the MCP client
+// (e.g. claude_desktop_config.json) are never overridden by a stray .env.
 // Note: debug:false is critical - any stdout output breaks MCP JSON-RPC protocol
 const envPath = path.join(projectRoot, '.env');
-dotenv.config({ path: envPath, override: true, debug: false });
+dotenv.config({ path: envPath, debug: false });
 
 async function main() {
     const config = {
@@ -45,7 +43,18 @@ async function main() {
         },
     };
 
-    const { connect, start } = createServer(config);
+    const { connect, start, obsAdapter } = createServer(config);
+
+    const shutdown = async () => {
+        try {
+            await obsAdapter.disconnect();
+        } catch {
+            // Ignore disconnect errors during shutdown
+        }
+        process.exit(0);
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
 
     // Connect to OBS first so tools work immediately. Tolerate failure so the
     // MCP server still starts and the client can call reconnect_obs later

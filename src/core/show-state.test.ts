@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ShowStateManager } from './show-state.js';
-import type { ShowTemplate, ShowState, SegmentState } from '../types/index.js';
+import type { ShowTemplate } from '../types/index.js';
 
 describe('ShowStateManager', () => {
     let manager: ShowStateManager;
@@ -21,7 +21,6 @@ describe('ShowStateManager', () => {
                     id: 'opening',
                     name: 'Opening',
                     type: 'opening',
-                    defaultLayoutId: 'layout-opening',
                     defaultSceneName: 'Opening Scene',
                     timerSec: 60,
                 },
@@ -29,20 +28,16 @@ describe('ShowStateManager', () => {
                     id: 'main',
                     name: 'Main Content',
                     type: 'talk',
-                    defaultLayoutId: 'layout-main',
                     defaultSceneName: 'Main Scene',
-                    defaultAudioMood: 'talk',
                 },
                 {
                     id: 'ending',
                     name: 'Ending',
                     type: 'ending',
-                    defaultLayoutId: 'layout-ending',
                     defaultSceneName: 'Ending Scene',
                     timerSec: 30,
                 },
             ],
-            defaultAudioMood: 'talk',
         };
     });
 
@@ -216,6 +211,21 @@ describe('ShowStateManager', () => {
         it('should return empty array when no show is running', () => {
             const segments = manager.getSegmentList();
             expect(segments).toEqual([]);
+        });
+    });
+
+    describe('getCurrentState', () => {
+        it('should return a deep copy that does not leak internal state', () => {
+            manager.registerTemplate(testTemplate);
+            manager.startShow('test-show');
+
+            const state = manager.getCurrentState();
+            state.currentSegment!.id = 'tampered';
+            state.segments.pop();
+
+            const fresh = manager.getCurrentState();
+            expect(fresh.currentSegment?.id).toBe('opening');
+            expect(fresh.segments).toHaveLength(3);
         });
     });
 

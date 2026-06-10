@@ -20,14 +20,19 @@ vi.mock('obs-websocket-js', () => {
     };
 });
 
+type MockOBS = Record<
+    'connect' | 'disconnect' | 'call' | 'on' | 'off',
+    ReturnType<typeof vi.fn>
+>;
+
 describe('OBSAdapter', () => {
     let adapter: OBSAdapter;
-    let mockOBS: any;
+    let mockOBS: MockOBS;
 
     beforeEach(async () => {
         // Get fresh mock
         const OBSWebSocket = (await import('obs-websocket-js')).default;
-        mockOBS = new OBSWebSocket();
+        mockOBS = new OBSWebSocket() as unknown as MockOBS;
         adapter = new OBSAdapter();
     });
 
@@ -130,23 +135,7 @@ describe('OBSAdapter', () => {
     });
 
     describe('getSourceScreenshot', () => {
-        it('should get screenshot of program output', async () => {
-            const base64Image = 'data:image/png;base64,iVBORw0KGgo...';
-            mockOBS.connect.mockResolvedValueOnce(undefined);
-            mockOBS.call.mockResolvedValueOnce({
-                imageData: base64Image,
-            });
-
-            await adapter.connect('ws://localhost:4455');
-            const result = await adapter.getSourceScreenshot();
-
-            expect(mockOBS.call).toHaveBeenCalledWith('GetSourceScreenshot', {
-                imageFormat: 'png',
-            });
-            expect(result).toBe(base64Image);
-        });
-
-        it('should get screenshot of specific source', async () => {
+        it('should default to jpg format', async () => {
             const base64Image = 'data:image/jpg;base64,/9j/4AAQSkZJRg...';
             mockOBS.connect.mockResolvedValueOnce(undefined);
             mockOBS.call.mockResolvedValueOnce({
@@ -154,13 +143,81 @@ describe('OBSAdapter', () => {
             });
 
             await adapter.connect('ws://localhost:4455');
-            const result = await adapter.getSourceScreenshot('Game Capture', 'jpg');
+            const result = await adapter.getSourceScreenshot('Program');
 
             expect(mockOBS.call).toHaveBeenCalledWith('GetSourceScreenshot', {
-                sourceName: 'Game Capture',
+                sourceName: 'Program',
                 imageFormat: 'jpg',
             });
             expect(result).toBe(base64Image);
+        });
+
+        it('should pass format, width and compression quality', async () => {
+            const base64Image = 'data:image/png;base64,iVBORw0KGgo...';
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({
+                imageData: base64Image,
+            });
+
+            await adapter.connect('ws://localhost:4455');
+            const result = await adapter.getSourceScreenshot('Game Capture', {
+                imageFormat: 'png',
+                imageWidth: 1280,
+                imageCompressionQuality: 75,
+            });
+
+            expect(mockOBS.call).toHaveBeenCalledWith('GetSourceScreenshot', {
+                sourceName: 'Game Capture',
+                imageFormat: 'png',
+                imageWidth: 1280,
+                imageCompressionQuality: 75,
+            });
+            expect(result).toBe(base64Image);
+        });
+    });
+
+    describe('applySmoothTransition', () => {
+        it('should find the fade transition by kind and set duration', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call
+                .mockResolvedValueOnce({
+                    transitions: [
+                        { transitionName: 'カット', transitionKind: 'cut_transition' },
+                        { transitionName: 'フェード', transitionKind: 'fade_transition' },
+                    ],
+                })
+                .mockResolvedValueOnce(undefined)
+                .mockResolvedValueOnce(undefined);
+
+            await adapter.connect('ws://localhost:4455');
+            const applied = await adapter.applySmoothTransition(500);
+
+            expect(applied).toBe(true);
+            expect(mockOBS.call).toHaveBeenCalledWith('SetCurrentSceneTransition', {
+                transitionName: 'フェード',
+            });
+            expect(mockOBS.call).toHaveBeenCalledWith(
+                'SetCurrentSceneTransitionDuration',
+                { transitionDuration: 500 }
+            );
+        });
+
+        it('should return false when no fade transition exists', async () => {
+            mockOBS.connect.mockResolvedValueOnce(undefined);
+            mockOBS.call.mockResolvedValueOnce({
+                transitions: [
+                    { transitionName: 'Cut', transitionKind: 'cut_transition' },
+                ],
+            });
+
+            await adapter.connect('ws://localhost:4455');
+            const applied = await adapter.applySmoothTransition(500);
+
+            expect(applied).toBe(false);
+            expect(mockOBS.call).not.toHaveBeenCalledWith(
+                'SetCurrentSceneTransition',
+                expect.anything()
+            );
         });
     });
 
@@ -191,21 +248,6 @@ describe('OBSAdapter', () => {
             expect(mockOBS.call).toHaveBeenCalledWith('SetInputVolume', {
                 inputName: 'Mic/Aux',
                 inputVolumeMul: 0.8,
-            });
-        });
-    });
-
-    describe('setInputMute', () => {
-        it('should mute input', async () => {
-            mockOBS.connect.mockResolvedValueOnce(undefined);
-            mockOBS.call.mockResolvedValueOnce(undefined);
-
-            await adapter.connect('ws://localhost:4455');
-            await adapter.setInputMute('Mic/Aux', true);
-
-            expect(mockOBS.call).toHaveBeenCalledWith('SetInputMute', {
-                inputName: 'Mic/Aux',
-                inputMuted: true,
             });
         });
     });

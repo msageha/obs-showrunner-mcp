@@ -10,14 +10,6 @@ export interface OperationValidation {
     reason?: string;
 }
 
-export interface OperationLogEntry {
-    timestamp: number;
-    operation: string;
-    params: Record<string, unknown>;
-    success: boolean;
-    dryRun: boolean;
-}
-
 const DANGEROUS_OPERATIONS = new Set([
     'stop_streaming',
     'stop_recording',
@@ -26,16 +18,25 @@ const DANGEROUS_OPERATIONS = new Set([
     'delete_profile',
 ]);
 
-const MAX_LOG_SIZE = 100;
+/**
+ * Permissiveness ranking: a runtime setMode may only move to a mode that is
+ * not more permissive than the baseline configured at startup. debug is the
+ * least permissive (dry-run, nothing executes), normal the most.
+ */
+const MODE_PERMISSIVENESS: Record<SafetyMode, number> = {
+    debug: 0,
+    strict: 1,
+    normal: 2,
+};
 
 export class SafetyGuard {
     private mode: SafetyMode = 'strict';
+    private baselineMode: SafetyMode = 'strict';
     private config: SafetyConfig = {
         mode: 'strict',
         allowStopStreaming: false,
         allowStopRecording: false,
     };
-    private operationLog: OperationLogEntry[] = [];
 
     /**
      * Get current safety mode
@@ -45,18 +46,32 @@ export class SafetyGuard {
     }
 
     /**
-     * Set safety mode
+     * Set safety mode at runtime. Escalating above the baseline configured at
+     * startup is rejected so an MCP client cannot lift its own restrictions
+     * (e.g. strict -> normal to unlock stop_streaming).
      */
     setMode(mode: SafetyMode): void {
+        if (MODE_PERMISSIVENESS[mode] > MODE_PERMISSIVENESS[this.baselineMode]) {
+            throw new Error(
+                `Cannot switch safety mode to '${mode}': it is more permissive than ` +
+                `the configured baseline '${this.baselineMode}'. Change SAFETY_MODE ` +
+                'in the server environment instead.'
+            );
+        }
         this.mode = mode;
         this.config.mode = mode;
     }
 
     /**
-     * Configure safety settings
+     * Configure safety settings (startup configuration).
+     * The configured mode becomes the baseline for runtime mode changes.
      */
     configure(config: Partial<SafetyConfig>): void {
         this.config = { ...this.config, ...config };
+        if (config.mode) {
+            this.mode = config.mode;
+            this.baselineMode = config.mode;
+        }
     }
 
     /**
@@ -120,46 +135,5 @@ export class SafetyGuard {
      */
     isDryRun(): boolean {
         return this.mode === 'debug';
-    }
-
-    /**
-     * Log an operation
-     */
-    logOperation(
-        operation: string,
-        params: Record<string, unknown>,
-        success: boolean
-    ): void {
-        const entry: OperationLogEntry = {
-            timestamp: Date.now(),
-            operation,
-            params,
-            success,
-            dryRun: this.isDryRun(),
-        };
-
-        this.operationLog.push(entry);
-
-        // Trim log if it exceeds max size
-        if (this.operationLog.length > MAX_LOG_SIZE) {
-            this.operationLog = this.operationLog.slice(-MAX_LOG_SIZE);
-        }
-    }
-
-    /**
-     * Get operation log
-     */
-    getOperationLog(limit?: number): OperationLogEntry[] {
-        if (limit) {
-            return this.operationLog.slice(-limit);
-        }
-        return [...this.operationLog];
-    }
-
-    /**
-     * Clear operation log
-     */
-    clearOperationLog(): void {
-        this.operationLog = [];
     }
 }

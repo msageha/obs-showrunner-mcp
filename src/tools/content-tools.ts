@@ -51,8 +51,10 @@ export class ContentTools {
                 settings = { ...settings, ...params.properties };
             }
 
-            await this.obsAdapter.setInputSettings(params.sourceName, settings, true);
-            this.safetyGuard.logOperation('update_source_content', params, true);
+            const dryRun = this.safetyGuard.isDryRun();
+            if (!dryRun) {
+                await this.obsAdapter.setInputSettings(params.sourceName, settings, true);
+            }
 
             return {
                 success: true,
@@ -60,11 +62,11 @@ export class ContentTools {
                     sourceName: params.sourceName,
                     sourceType,
                     content: params.content,
+                    ...(dryRun ? { dryRun: true } : {}),
                 },
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.safetyGuard.logOperation('update_source_content', params, false);
             return { success: false, error: message };
         }
     }

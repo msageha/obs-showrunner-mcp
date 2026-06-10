@@ -22,7 +22,7 @@ OBS ShowRunner transforms your LLM (Claude, ChatGPT, etc.) into an AI Director t
 ### Prerequisites
 
 - OBS Studio 31+ with WebSocket enabled (default port: 4455)
-- Node.js 18+
+- Node.js 20+
 
 ### Installation
 
@@ -94,25 +94,31 @@ Once configured, you can ask Claude things like:
 |------|-------------|
 | `start_show` | Start a show from a template |
 | `end_show` | End the current show |
-| `switch_segment` | Switch to a different segment |
+| `switch_segment` | Switch to a different segment (optionally with a fade transition) |
 | `extend_segment` | Extend current segment timer |
 | `get_current_show_state` | Get current show state |
+| `get_show_templates` | List registered show templates |
 
 ### Audio & Effects
+
+Effects and overlays are mapped to OBS scene items by name: triggering the
+effect `confetti` enables the scene item named `confetti` in the current
+program scene (and disables it again after `durationSec`).
 
 | Tool | Description |
 |------|-------------|
 | `set_audio_mood` | Apply audio mood profile (talk, hype, cinema, etc.) |
-| `trigger_effect` | Trigger visual effects |
-| `show_overlay` | Show an overlay |
-| `hide_overlay` | Hide an overlay |
+| `trigger_effect` | Enable an effect scene item with auto-revert |
+| `show_overlay` | Enable an overlay scene item |
+| `hide_overlay` | Disable an overlay scene item |
 | `mark_highlight` | Mark a highlight timestamp |
+| `get_highlights` | List recorded highlight markers |
 
 ### Vision & Content
 
 | Tool | Description |
 |------|-------------|
-| `take_stream_snapshot` | Capture screenshot (Vision) |
+| `take_stream_snapshot` | Capture screenshot (Vision); supports `imageFormat`/`imageWidth`, defaults to 1280px JPEG to keep payloads small |
 | `update_source_content` | Update text/browser/image sources |
 
 ### Admin
@@ -146,11 +152,20 @@ Environment variables:
 | `OBS_GAME_INPUT_NAME` | `Game Audio` | Game audio source name |
 | `OBS_SE_INPUT_NAME` | `Sound Effects` | Sound effects source name |
 
+Environment variables passed by the MCP client always take precedence; a local
+`.env` file is only used as a fallback for development.
+
+### Show Templates
+
+A built-in template with id `default` is always available, with three
+segments: `opening` (5 min timer), `main`, and `ending` (5 min timer). Use the
+`get_show_templates` tool to inspect it.
+
 ## Development
 
 ```bash
 # Clone the repository
-git clone https://github.com/takurot/obs-showrunner-mcp.git
+git clone https://github.com/msageha/obs-showrunner-mcp.git
 cd obs-showrunner-mcp
 
 # Install dependencies
@@ -171,9 +186,14 @@ npm run build
 
 ## Safety Modes
 
-- **strict** (default): Blocks all dangerous operations
-- **normal**: Allows configured operations only
-- **debug**: Dry-run mode, operations are logged but not executed
+- **strict** (default): Blocks all dangerous operations (stop streaming/recording, deletes)
+- **normal**: Allows dangerous operations explicitly enabled via `ALLOW_STOP_STREAMING` / `ALLOW_STOP_RECORDING`
+- **debug**: Dry-run mode — OBS-mutating operations are logged and skipped (internal show state still updates so flows can be rehearsed); results include `"dryRun": true`
+
+The `set_safety_mode` tool can only switch to a mode that is **not more
+permissive** than the baseline configured via `SAFETY_MODE`, so an MCP client
+cannot lift its own restrictions at runtime (permissiveness: `debug` < `strict`
+< `normal`).
 
 ## Architecture
 

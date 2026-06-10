@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SafetyGuard } from './safety-guard.js';
-import type { SafetyMode } from '../types/index.js';
 
 describe('SafetyGuard', () => {
     let guard: SafetyGuard;
@@ -20,14 +19,28 @@ describe('SafetyGuard', () => {
     });
 
     describe('setMode', () => {
-        it('should change safety mode', () => {
+        it('should allow switching to a more restrictive mode', () => {
+            guard.setMode('debug');
+            expect(guard.getMode()).toBe('debug');
+        });
+
+        it('should reject escalating above the configured baseline', () => {
+            // Default baseline is strict; normal is more permissive
+            expect(() => guard.setMode('normal')).toThrow(/more permissive/);
+            expect(guard.getMode()).toBe('strict');
+        });
+
+        it('should allow returning to the baseline mode', () => {
+            guard.configure({ mode: 'normal' });
+            guard.setMode('strict');
             guard.setMode('normal');
             expect(guard.getMode()).toBe('normal');
         });
 
-        it('should accept debug mode', () => {
-            guard.setMode('debug');
-            expect(guard.getMode()).toBe('debug');
+        it('should not allow leaving debug baseline', () => {
+            guard.configure({ mode: 'debug' });
+            expect(() => guard.setMode('strict')).toThrow(/more permissive/);
+            expect(() => guard.setMode('normal')).toThrow(/more permissive/);
         });
     });
 
@@ -62,8 +75,8 @@ describe('SafetyGuard', () => {
 
         describe('in normal mode', () => {
             beforeEach(() => {
-                guard.setMode('normal');
                 guard.configure({
+                    mode: 'normal',
                     allowStopStreaming: true,
                     allowStopRecording: true,
                 });
@@ -119,26 +132,9 @@ describe('SafetyGuard', () => {
         });
 
         it('should return false in normal mode', () => {
-            guard.setMode('normal');
+            guard.configure({ mode: 'normal' });
             expect(guard.isDryRun()).toBe(false);
         });
     });
 
-    describe('operation logging', () => {
-        it('should log operations', () => {
-            guard.logOperation('switch_scene', { sceneName: 'Scene 1' }, true);
-            const logs = guard.getOperationLog(1);
-            expect(logs).toHaveLength(1);
-            expect(logs[0].operation).toBe('switch_scene');
-            expect(logs[0].success).toBe(true);
-        });
-
-        it('should limit log size', () => {
-            for (let i = 0; i < 150; i++) {
-                guard.logOperation('test_op', {}, true);
-            }
-            const logs = guard.getOperationLog();
-            expect(logs.length).toBeLessThanOrEqual(100);
-        });
-    });
 });
